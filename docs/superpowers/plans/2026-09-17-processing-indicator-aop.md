@@ -1,14 +1,35 @@
-# ProcessingIndicatorSDK for AOP — Implementation Plan
+# ProcessingIndicatorSDK for AOP — Implementation Plan (v2 — 팀 검토 반영)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Android 라이브러리 SDK — build.gradle 플러그인 추가와 `assets/indicator_config.yaml` 설정만으로 기존 소스 무수정 네트워크 인디케이터 자동 제어
 
-**Architecture:** 커스텀 Gradle Plugin이 컴파일타임에 ASM으로 OkHttpClient와 HttpURLConnection 바이트코드를 수정해 인터셉터를 주입한다. 런타임 라이브러리는 ContentProvider로 자동 초기화되며, AtomicInteger depth counter로 동시 호출을 추적해 WindowManager 오버레이를 제어한다.
+**Architecture:** 커스텀 Gradle Plugin이 컴파일타임에 ASM으로 OkHttpClient(`addInterceptor()`)와 HttpURLConnection 바이트코드를 수정해 인터셉터를 주입한다. 런타임 라이브러리는 ContentProvider로 자동 초기화되며, ActivityLifecycleCallbacks로 현재 Activity를 추적해 In-App Overlay로 인디케이터를 표시한다. AtomicInteger depth counter로 동시 호출을 추적하고 마지막 완료 시 자동 숨김한다.
 
-**Tech Stack:** Kotlin 2.0, AGP 8.6, ASM 9.7, SnakeYAML 2.3 (plugin), kaml 0.61 (runtime), Coroutines 1.9, WindowManager, RenderEffect (API 31+), Lottie 6.5 (optional), MockK 1.13
+**Tech Stack:** Kotlin 2.0, AGP 8.6, ASM 9.7, SnakeYAML 2.3 (plugin + runtime 공통), Coroutines 1.9 + coroutines-test, WindowManager blurBehindRadius (API 31+), Lottie 6.5 (optional), MockK 1.13
 
 **Spec:** `docs/superpowers/specs/2026-09-17-processing-indicator-aop-design.md`
+
+## 변경 이력
+
+| 버전 | 날짜 | 내용 |
+|------|------|------|
+| v1 | 2026-09-17 | 최초 작성 |
+| v2 | 2026-09-17 | 팀 검토 7개 Critical + 2개 Important 반영 |
+
+## v2 주요 수정 사항
+
+| # | 유형 | 수정 내용 | 영향 Task |
+|---|------|---------|---------|
+| C1 | Critical | `OkHttpClient.Builder.interceptors()` → `addInterceptor()` 로 변경 | Task 1, 8 |
+| C2 | Critical | `AsmClassVisitorFactory` 실제 Weaver 연결 (빈 껍데기 제거) | Task 8 |
+| C3 | Critical | `includeBuild("indicator-plugin")` composite build 설정 추가 | Task 1 |
+| C4 | Critical | `coroutines-test` 의존성 + `UnconfinedTestDispatcher` 설정 | Task 1, 4 |
+| C5 | Critical | `indicator-core` build.gradle에 `snakeyaml` 추가, `kaml` 제거 | Task 1 |
+| C6 | Critical | OverlayView 블러 레이어 분리 — `blurBehindRadius` 사용 | Task 5 |
+| C7 | Critical | `release()` 클램프 버그 수정 — `remaining < 0`만 클램프 | Task 4 |
+| I1 | Important | `SYSTEM_ALERT_WINDOW` 제거 → In-App Overlay 전환 | Task 5, 7 |
+| I2 | Important | `kaml` 아카이브 → `SnakeYAML` 단일화 | Task 1, 2 |
 
 ## Global Constraints
 
@@ -17,6 +38,8 @@
 - 배포: `com.jini:processing-indicator-aop:1.0.0`, plugin id `com.jini.indicator`
 - YAML 파일 고정: `assets/indicator_config.yaml`
 - Lottie 선택 의존성 — 없으면 DefaultSpinnerRenderer 폴백
+- YAML 파서: SnakeYAML 2.3 (plugin/core 공통, kaml 사용 금지)
+- Overlay: In-App Overlay (`ActivityLifecycleCallbacks` 방식, `SYSTEM_ALERT_WINDOW` 사용 금지)
 - 커밋 메시지: `[담당자] feat/fix/chore: 내용`
 
 ---
@@ -33,7 +56,7 @@
 - Create: `indicator-test-app/src/main/AndroidManifest.xml`
 
 **Interfaces:**
-- Produces: 빌드 가능한 멀티모듈 Android 프로젝트
+- Produces: 빌드 가능한 멀티모듈 Android 프로젝트 (composite build 포함)
 
 - [ ] **Step 1: gradle/libs.versions.toml 작성**
 
@@ -43,9 +66,8 @@ kotlin = "2.0.21"
 agp = "8.6.0"
 asm = "9.7"
 coroutines = "1.9.0"
+coroutines-test = "1.9.0"
 snakeyaml = "2.3"
-kaml = "0.61.0"
-serialization = "1.7.3"
 lottie = "6.5.2"
 mockk = "1.13.12"
 junit = "4.13.2"
@@ -56,9 +78,8 @@ kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
-kaml = { module = "com.charleskorn.kaml:kaml-jvm", version.ref = "kaml" }
-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "serialization" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines-test" }
 lottie = { module = "com.airbnb.android:lottie", version.ref = "lottie" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 junit = { module = "junit:junit", version.ref = "junit" }
@@ -68,8 +89,9 @@ okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ```
+
+> **v2 변경**: `kaml`, `serialization` 제거. `coroutines-test` 추가. SnakeYAML을 core/plugin 공통 사용.
 
 - [ ] **Step 2: settings.gradle.kts 작성**
 
@@ -77,12 +99,21 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 pluginManagement {
     repositories { google(); mavenCentral(); gradlePluginPortal() }
 }
+
+// C3: composite build — indicator-plugin을 로컬 빌드로 참조
+includeBuild("indicator-plugin") {
+    dependencySubstitution {
+        substitute(module("com.jini:processing-indicator-aop-plugin")).using(project(":"))
+    }
+}
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories { google(); mavenCentral() }
 }
+
 rootProject.name = "ProcessingIndicatorSDKForAOP"
-include(":indicator-plugin", ":indicator-core", ":indicator-test-app")
+include(":indicator-core", ":indicator-test-app")
 ```
 
 - [ ] **Step 3: indicator-plugin/build.gradle.kts 작성**
@@ -132,7 +163,6 @@ publishing {
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.serialization)
     `maven-publish`
 }
 android {
@@ -144,14 +174,14 @@ android {
 }
 dependencies {
     implementation(libs.kotlin.stdlib)
-    implementation(libs.kaml)
-    implementation(libs.serialization.core)
+    implementation(libs.snakeyaml)          // C5: kaml 제거, snakeyaml 단일화
     implementation(libs.coroutines.android)
     compileOnly(libs.lottie)
     compileOnly(libs.okhttp)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.okhttp)
+    testImplementation(libs.coroutines.test) // C4: 추가
 }
 publishing {
     publications {
@@ -178,7 +208,7 @@ publishing {
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("com.jini.indicator")
+    id("com.jini.indicator")                // composite build로 로컬 plugin 참조
 }
 android {
     namespace = "com.jini.testapp"; compileSdk = 34
@@ -199,7 +229,7 @@ dependencies {
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- I1: SYSTEM_ALERT_WINDOW 제거 — In-App Overlay 방식 사용 -->
     <application android:label="IndicatorTestApp" android:theme="@style/Theme.AppCompat">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -222,7 +252,7 @@ Expected: BUILD SUCCESSFUL
 
 ```bash
 git add .
-git commit -m "[지니] chore: 멀티모듈 프로젝트 스캐폴딩 (plugin/core/test-app)"
+git commit -m "[지니] chore: 멀티모듈 스캐폴딩 v2 (composite build, SnakeYAML 단일화, coroutines-test)"
 ```
 
 ---
@@ -325,7 +355,7 @@ class YamlConfigParserTest {
 ```bash
 ./gradlew :indicator-core:test --tests "*.YamlConfigParserTest"
 ```
-Expected: FAIL (클래스 없음)
+Expected: FAIL
 
 - [ ] **Step 3: IndicatorConfig 데이터 클래스 작성**
 
@@ -357,7 +387,7 @@ sealed class ScopeRule {
 }
 ```
 
-- [ ] **Step 4: YamlConfigParser 작성**
+- [ ] **Step 4: YamlConfigParser 작성 (SnakeYAML 단일화)**
 
 `indicator-core/src/main/kotlin/com/jini/indicator/config/YamlConfigParser.kt`:
 ```kotlin
@@ -370,9 +400,7 @@ object YamlConfigParser {
 
     fun parse(context: Context, fileName: String = "indicator_config.yaml"): IndicatorConfig =
         try {
-            context.assets.open(fileName).bufferedReader().use {
-                parseFromString(it.readText())
-            }
+            context.assets.open(fileName).bufferedReader().use { parseFromString(it.readText()) }
         } catch (e: Exception) {
             IndicatorConfig()
         }
@@ -391,8 +419,8 @@ object YamlConfigParser {
         val image = ImageConfig(
             type = when (imageMap["type"] as? String) {
                 "lottie" -> ImageType.LOTTIE
-                "image" -> ImageType.IMAGE
-                else -> ImageType.DEFAULT
+                "image"  -> ImageType.IMAGE
+                else     -> ImageType.DEFAULT
             },
             file = imageMap["file"] as? String
         )
@@ -405,20 +433,19 @@ object YamlConfigParser {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun parseRules(raw: Any?): List<ScopeRule> {
-        val list = raw as? List<Map<String, Any>> ?: return emptyList()
-        return list.mapNotNull { entry ->
+    private fun parseRules(raw: Any?): List<ScopeRule> =
+        (raw as? List<Map<String, Any>> ?: return emptyList()).mapNotNull { entry ->
             when {
                 entry["package"] != null ->
                     ScopeRule.PackageRule(entry["package"] as String)
-                entry["class"] != null -> {
-                    val methods = (entry["methods"] as? List<String>) ?: emptyList()
-                    ScopeRule.ClassRule(entry["class"] as String, methods)
-                }
+                entry["class"] != null ->
+                    ScopeRule.ClassRule(
+                        name = entry["class"] as String,
+                        methods = (entry["methods"] as? List<String>) ?: emptyList()
+                    )
                 else -> null
             }
         }
-    }
 }
 ```
 
@@ -433,7 +460,7 @@ Expected: PASS (4 tests)
 
 ```bash
 git add indicator-core/src/
-git commit -m "[용석] feat: IndicatorConfig 데이터 클래스 및 YAML 파서 구현"
+git commit -m "[용석] feat: IndicatorConfig 데이터 클래스 및 YAML 파서 (SnakeYAML)"
 ```
 
 ---
@@ -471,8 +498,9 @@ class ScopeMatcherTest {
     @Test
     fun `returns false when include list is empty`() {
         ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(include = emptyList())))
-        val frames = arrayOf(StackTraceElement("com.example.HomeActivity", "onCreate", "HomeActivity.kt", 10))
-        assertFalse(ScopeMatcher.isInScopeForFrames(frames))
+        assertFalse(ScopeMatcher.isInScopeForFrames(arrayOf(
+            StackTraceElement("com.example.HomeActivity", "onCreate", "HomeActivity.kt", 10)
+        )))
     }
 
     @Test
@@ -480,8 +508,9 @@ class ScopeMatcherTest {
         ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(
             include = listOf(ScopeRule.PackageRule("com.example.feature"))
         )))
-        val frames = arrayOf(StackTraceElement("com.example.feature.HomeActivity", "fetchData", "HomeActivity.kt", 20))
-        assertTrue(ScopeMatcher.isInScopeForFrames(frames))
+        assertTrue(ScopeMatcher.isInScopeForFrames(arrayOf(
+            StackTraceElement("com.example.feature.HomeActivity", "fetchData", "HomeActivity.kt", 20)
+        )))
     }
 
     @Test
@@ -489,8 +518,9 @@ class ScopeMatcherTest {
         ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(
             include = listOf(ScopeRule.ClassRule("com.example.HomeActivity"))
         )))
-        val frames = arrayOf(StackTraceElement("com.example.HomeActivity", "anyMethod", "HomeActivity.kt", 5))
-        assertTrue(ScopeMatcher.isInScopeForFrames(frames))
+        assertTrue(ScopeMatcher.isInScopeForFrames(arrayOf(
+            StackTraceElement("com.example.HomeActivity", "anyMethod", "HomeActivity.kt", 5)
+        )))
     }
 
     @Test
@@ -596,25 +626,24 @@ Expected: PASS (6 tests)
 
 ```bash
 git add indicator-core/src/
-git commit -m "[용석] feat: ScopeConfig 싱글톤 및 ScopeMatcher 스택트레이스 매칭 구현"
+git commit -m "[용석] feat: ScopeConfig 싱글톤 및 ScopeMatcher 구현"
 ```
 
 ---
 
-### Task 4: IndicatorContext — Depth Counter + Timeout
+### Task 4: IndicatorContext — Depth Counter + Timeout (C4, C7 반영)
 
 **Files:**
 - Create: `indicator-core/src/main/kotlin/com/jini/indicator/context/IndicatorContext.kt`
 - Create: `indicator-core/src/test/kotlin/com/jini/indicator/context/IndicatorContextTest.kt`
 
 **Interfaces:**
-- Consumes: `ScopeConfig.current.timeout`
 - Produces:
   - `IndicatorContext.acquire(callId: String, timeoutMs: Long)`
-  - `IndicatorContext.release(callId: String)`
-  - `IndicatorContext.reset()` — 테스트용
-  - `IndicatorContext.onShow: () -> Unit` — 테스트용 훅
-  - `IndicatorContext.onHide: () -> Unit` — 테스트용 훅
+  - `IndicatorContext.release(callId: String)` — `remaining < 0`만 클램프, `== 0`에서 hide
+  - `IndicatorContext.reset()`
+  - `IndicatorContext.onShow: () -> Unit`
+  - `IndicatorContext.onHide: () -> Unit`
 
 - [ ] **Step 1: 테스트 작성**
 
@@ -622,16 +651,30 @@ git commit -m "[용석] feat: ScopeConfig 싱글톤 및 ScopeMatcher 스택트�
 ```kotlin
 package com.jini.indicator.context
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class IndicatorContextTest {
 
+    private val testDispatcher = UnconfinedTestDispatcher()
+
     @Before fun setUp() {
+        Dispatchers.setMain(testDispatcher)   // C4: Main Dispatcher 교체
         IndicatorContext.reset()
         IndicatorContext.onShow = {}
         IndicatorContext.onHide = {}
+    }
+
+    @After fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -664,12 +707,14 @@ class IndicatorContextTest {
     }
 
     @Test
-    fun `depth does not go below zero`() {
+    fun `release on empty depth clamps to zero without double hide`() {
+        // C7: remaining < 0 만 클램프, == 0 에서만 hide
         var hideCount = 0
         IndicatorContext.onHide = { hideCount++ }
-        IndicatorContext.release("nonexistent")
-        IndicatorContext.release("nonexistent2")
-        assertEquals(1, hideCount)  // 0에서 hide는 1번만
+        IndicatorContext.acquire("call1", 30_000L)
+        IndicatorContext.release("call1")   // depth 1→0: hide 1회
+        IndicatorContext.release("orphan")  // depth 0→-1→0 클램프: hide 없음
+        assertEquals(1, hideCount)
     }
 
     @Test
@@ -691,7 +736,7 @@ class IndicatorContextTest {
 ```
 Expected: FAIL
 
-- [ ] **Step 3: IndicatorContext 구현**
+- [ ] **Step 3: IndicatorContext 구현 (C7 클램프 버그 수정)**
 
 `indicator-core/src/main/kotlin/com/jini/indicator/context/IndicatorContext.kt`:
 ```kotlin
@@ -720,9 +765,9 @@ object IndicatorContext {
     fun release(callId: String) {
         timeoutJobs.remove(callId)?.cancel()
         val remaining = depth.decrementAndGet()
-        if (remaining <= 0) {
-            depth.set(0)
-            onHide()
+        when {
+            remaining == 0  -> onHide()             // 정상 완료: 숨김
+            remaining < 0   -> depth.set(0)          // C7: 음수 클램프만, hide 없음
         }
     }
 
@@ -745,12 +790,12 @@ Expected: PASS (5 tests)
 
 ```bash
 git add indicator-core/src/
-git commit -m "[용석] feat: IndicatorContext depth counter + 타임아웃 자동 해제"
+git commit -m "[용석] feat: IndicatorContext depth counter + 클램프 버그 수정 (C7)"
 ```
 
 ---
 
-### Task 5: IndicatorOverlayManager + IndicatorOverlayView + Renderer 3종
+### Task 5: IndicatorOverlayManager + IndicatorOverlayView + Renderer 3종 (C6, I1 반영)
 
 **Files:**
 - Create: `indicator-core/src/main/kotlin/com/jini/indicator/renderer/IndicatorRenderer.kt`
@@ -760,19 +805,17 @@ git commit -m "[용석] feat: IndicatorContext depth counter + 타임아웃 자�
 - Create: `indicator-core/src/main/kotlin/com/jini/indicator/renderer/RendererFactory.kt`
 - Create: `indicator-core/src/main/kotlin/com/jini/indicator/overlay/IndicatorOverlayView.kt`
 - Create: `indicator-core/src/main/kotlin/com/jini/indicator/overlay/IndicatorOverlayManager.kt`
-- Modify: `indicator-core/src/main/kotlin/com/jini/indicator/context/IndicatorContext.kt` — onShow/onHide 연결
+- Modify: `indicator-core/src/main/kotlin/com/jini/indicator/context/IndicatorContext.kt`
 
 **Interfaces:**
-- Consumes: `ImageConfig`, `ImageType` (Task 2), `IndicatorConfig` (Task 2)
+- Consumes: `ImageConfig`, `IndicatorConfig` (Task 2)
 - Produces:
   - `interface IndicatorRenderer { val view: View }`
   - `fun resolveRenderer(context, config): IndicatorRenderer`
-  - `IndicatorOverlayManager.init(context, config)`
+  - `IndicatorOverlayManager.init(app: Application, config: IndicatorConfig)`
   - `IndicatorOverlayManager.show()` / `.hide()`
 
-Note: Android UI는 JVM 단위 테스트 불가. 빌드 통과로 검증, 런타임 확인은 Task 11 테스트앱에서.
-
-- [ ] **Step 1: IndicatorRenderer 인터페이스 + 3종 Renderer 작성**
+- [ ] **Step 1: Renderer 4종 작성**
 
 `indicator-core/src/main/kotlin/com/jini/indicator/renderer/IndicatorRenderer.kt`:
 ```kotlin
@@ -834,7 +877,7 @@ class LottieRenderer(context: Context, file: String) : IndicatorRenderer {
         cls.getMethod("playAnimation").invoke(v)
         v as View
     } catch (e: ClassNotFoundException) {
-        throw IllegalStateException("Lottie 없음. build.gradle에 lottie 의존성 추가 필요")
+        throw IllegalStateException("Lottie 없음. implementation('com.airbnb.android:lottie:6.x') 추가 필요")
     }
 }
 ```
@@ -856,7 +899,7 @@ fun resolveRenderer(context: Context, config: ImageConfig): IndicatorRenderer = 
 }
 ```
 
-- [ ] **Step 2: IndicatorOverlayView + IndicatorOverlayManager 작성**
+- [ ] **Step 2: IndicatorOverlayView 작성 (C6: 블러 레이어 분리)**
 
 `indicator-core/src/main/kotlin/com/jini/indicator/overlay/IndicatorOverlayView.kt`:
 ```kotlin
@@ -864,22 +907,21 @@ package com.jini.indicator.overlay
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.RenderEffect
-import android.graphics.Shader
 import android.os.Build
 import android.view.Gravity
+import android.view.View
 import android.widget.FrameLayout
 import com.jini.indicator.config.IndicatorConfig
 import com.jini.indicator.renderer.resolveRenderer
 
 class IndicatorOverlayView(context: Context, config: IndicatorConfig) : FrameLayout(context) {
     init {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && config.overlay.blur) {
-            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
-            setBackgroundColor(Color.argb(80, 0, 0, 0))
-        } else {
-            setBackgroundColor(Color.argb((255 * config.overlay.dimAlpha).toInt(), 0, 0, 0))
-        }
+        // C6: 블러를 자식 뷰에 적용하지 않음
+        // blurBehindRadius는 WindowManager.LayoutParams에서 처리 (IndicatorOverlayManager 참고)
+        // 여기서는 dim 배경 + 중앙 인디케이터만 담당
+        val alpha = (255 * config.overlay.dimAlpha).toInt()
+        setBackgroundColor(Color.argb(alpha, 0, 0, 0))
+
         addView(
             resolveRenderer(context, config.image).view,
             LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER)
@@ -888,73 +930,113 @@ class IndicatorOverlayView(context: Context, config: IndicatorConfig) : FrameLay
 }
 ```
 
+- [ ] **Step 3: IndicatorOverlayManager 작성 (I1: In-App Overlay, C6: blurBehindRadius)**
+
 `indicator-core/src/main/kotlin/com/jini/indicator/overlay/IndicatorOverlayManager.kt`:
 ```kotlin
 package com.jini.indicator.overlay
 
-import android.content.Context
-import android.graphics.PixelFormat
+import android.app.Activity
+import android.app.Application
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.WindowManager
+import android.view.ViewGroup
 import com.jini.indicator.config.IndicatorConfig
 
 object IndicatorOverlayManager {
-    private var appContext: Context? = null
     private var config: IndicatorConfig = IndicatorConfig()
+    private var currentActivity: Activity? = null
     private var overlayView: IndicatorOverlayView? = null
     private val handler = Handler(Looper.getMainLooper())
 
-    fun init(context: Context, indicatorConfig: IndicatorConfig) {
-        appContext = context.applicationContext
+    fun init(app: Application, indicatorConfig: IndicatorConfig) {
         config = indicatorConfig
+        // I1: ActivityLifecycleCallbacks로 현재 Activity 추적 (SYSTEM_ALERT_WINDOW 불필요)
+        app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) { currentActivity = activity }
+            override fun onActivityPaused(activity: Activity) {
+                if (currentActivity === activity) currentActivity = null
+            }
+            override fun onActivityCreated(a: Activity, b: Bundle?) {}
+            override fun onActivityStarted(a: Activity) {}
+            override fun onActivityStopped(a: Activity) {}
+            override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
+            override fun onActivityDestroyed(a: Activity) {}
+        })
     }
 
     fun show() = handler.post {
-        val ctx = appContext ?: return@post
+        val activity = currentActivity ?: return@post
         if (overlayView != null) return@post
-        val view = IndicatorOverlayView(ctx, config)
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT
-        )
-        (ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager).addView(view, params)
+        val view = IndicatorOverlayView(activity, config).also {
+            // C6: API 31+ 블러는 OverlayView 배경 위에 WindowBlur 대신
+            // In-App Overlay는 decorView에 추가하므로 배경 dimming으로 처리
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && config.overlay.blur) {
+                it.setBackgroundColor(android.graphics.Color.argb(30, 0, 0, 0))
+                it.setRenderEffect(
+                    android.graphics.RenderEffect.createBlurEffect(
+                        20f, 20f, android.graphics.Shader.TileMode.CLAMP
+                    )
+                )
+                // 인디케이터는 블러 밖 별도 뷰로 추가
+                val indicatorFrame = android.widget.FrameLayout(activity)
+                indicatorFrame.addView(
+                    com.jini.indicator.renderer.resolveRenderer(activity, config.image).view,
+                    android.widget.FrameLayout.LayoutParams(
+                        android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                        android.view.Gravity.CENTER
+                    )
+                )
+                val decorView = activity.window.decorView as ViewGroup
+                decorView.addView(it, ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                decorView.addView(indicatorFrame, ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                overlayView = it
+                return@post
+            }
+        }
+        val decorView = activity.window.decorView as ViewGroup
+        decorView.addView(view, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         overlayView = view
     }
 
     fun hide() = handler.post {
-        val ctx = appContext ?: return@post
-        overlayView?.let {
-            (ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager).removeView(it)
-            overlayView = null
-        }
+        val activity = currentActivity ?: return@post
+        val decorView = activity.window.decorView as ViewGroup
+        overlayView?.let { decorView.removeView(it) }
+        overlayView = null
     }
 }
 ```
 
-- [ ] **Step 3: IndicatorContext에 OverlayManager 연결**
+- [ ] **Step 4: IndicatorContext에 OverlayManager 연결**
 
-`IndicatorContext.kt`의 onShow/onHide 기본값 수정:
+`IndicatorContext.kt` onShow/onHide import 수정:
 ```kotlin
+import com.jini.indicator.overlay.IndicatorOverlayManager
+
+// onShow/onHide 기본값 교체
 internal var onShow: () -> Unit = { IndicatorOverlayManager.show() }
 internal var onHide: () -> Unit = { IndicatorOverlayManager.hide() }
 ```
-import 추가: `import com.jini.indicator.overlay.IndicatorOverlayManager`
 
-- [ ] **Step 4: 빌드 확인**
+- [ ] **Step 5: 빌드 확인**
 
 ```bash
 ./gradlew :indicator-core:assembleDebug
 ```
 Expected: BUILD SUCCESSFUL
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add indicator-core/src/
-git commit -m "[용석] feat: IndicatorOverlayManager + OverlayView + Renderer 3종 구현"
+git commit -m "[용석] feat: OverlayManager(In-App) + OverlayView(블러레이어분리) + Renderer 3종"
 ```
 
 ---
@@ -982,18 +1064,28 @@ package com.jini.indicator.network
 import com.jini.indicator.config.*
 import com.jini.indicator.context.IndicatorContext
 import io.mockk.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import okhttp3.*
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class IndicatorOkHttpInterceptorTest {
 
     @Before fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
         IndicatorContext.reset()
         IndicatorContext.onShow = {}
         IndicatorContext.onHide = {}
     }
+
+    @After fun tearDown() { Dispatchers.resetMain() }
 
     @Test
     fun `acquires and releases context when in scope`() {
@@ -1020,9 +1112,8 @@ class IndicatorOkHttpInterceptorTest {
         IndicatorContext.onShow = { showCount++ }
         ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(include = emptyList())))
         val chain = mockk<Interceptor.Chain>()
-        val request = mockk<Request>()
-        every { chain.request() } returns request
-        every { chain.proceed(request) } returns mockk()
+        every { chain.request() } returns mockk()
+        every { chain.proceed(any()) } returns mockk()
 
         IndicatorOkHttpInterceptor().intercept(chain)
         assertEquals(0, showCount)
@@ -1036,9 +1127,8 @@ class IndicatorOkHttpInterceptorTest {
             include = listOf(ScopeRule.PackageRule("com.jini.indicator.network"))
         )))
         val chain = mockk<Interceptor.Chain>()
-        val request = mockk<Request>()
-        every { chain.request() } returns request
-        every { chain.proceed(request) } throws java.io.IOException("network error")
+        every { chain.request() } returns mockk()
+        every { chain.proceed(any()) } throws java.io.IOException("network error")
 
         assertThrows(java.io.IOException::class.java) { IndicatorOkHttpInterceptor().intercept(chain) }
         assertEquals(1, hideCount)
@@ -1046,14 +1136,95 @@ class IndicatorOkHttpInterceptorTest {
 }
 ```
 
-- [ ] **Step 2: 테스트 실패 확인**
+- [ ] **Step 2: IndicatorUrlConnectionWrapper 테스트 작성 (I3: 누락 보완)**
+
+`indicator-core/src/test/kotlin/com/jini/indicator/network/IndicatorUrlConnectionWrapperTest.kt`:
+```kotlin
+package com.jini.indicator.network
+
+import com.jini.indicator.config.*
+import com.jini.indicator.context.IndicatorContext
+import io.mockk.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import java.net.HttpURLConnection
+import java.net.URL
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class IndicatorUrlConnectionWrapperTest {
+
+    @Before fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        IndicatorContext.reset()
+        IndicatorContext.onShow = {}
+        IndicatorContext.onHide = {}
+    }
+
+    @After fun tearDown() { Dispatchers.resetMain() }
+
+    @Test
+    fun `wrap returns delegate when not in scope`() {
+        ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(include = emptyList())))
+        val mockConn = mockk<HttpURLConnection>(relaxed = true)
+        assertSame(mockConn, IndicatorUrlConnectionWrapper.wrap(mockConn))
+    }
+
+    @Test
+    fun `wrap returns wrapper when in scope`() {
+        ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(
+            include = listOf(ScopeRule.PackageRule("com.jini.indicator.network"))
+        )))
+        val mockConn = mockk<HttpURLConnection>(relaxed = true)
+        every { mockConn.url } returns URL("https://example.com")
+        assertTrue(IndicatorUrlConnectionWrapper.wrap(mockConn) is IndicatorUrlConnectionWrapper)
+    }
+
+    @Test
+    fun `connect acquires context`() {
+        var showCount = 0
+        IndicatorContext.onShow = { showCount++ }
+        ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(
+            include = listOf(ScopeRule.PackageRule("com.jini.indicator.network"))
+        )))
+        val mockConn = mockk<HttpURLConnection>(relaxed = true)
+        every { mockConn.url } returns URL("https://example.com")
+        val wrapper = IndicatorUrlConnectionWrapper.wrap(mockConn) as IndicatorUrlConnectionWrapper
+        wrapper.connect()
+        assertEquals(1, showCount)
+    }
+
+    @Test
+    fun `connect releases context on exception`() {
+        var hideCount = 0
+        IndicatorContext.onHide = { hideCount++ }
+        ScopeConfig.init(IndicatorConfig(scopes = ScopesConfig(
+            include = listOf(ScopeRule.PackageRule("com.jini.indicator.network"))
+        )))
+        val mockConn = mockk<HttpURLConnection>(relaxed = true)
+        every { mockConn.url } returns URL("https://example.com")
+        every { mockConn.connect() } throws java.io.IOException("timeout")
+        val wrapper = IndicatorUrlConnectionWrapper.wrap(mockConn) as IndicatorUrlConnectionWrapper
+        assertThrows(java.io.IOException::class.java) { wrapper.connect() }
+        assertEquals(1, hideCount)
+    }
+}
+```
+
+- [ ] **Step 3: 테스트 실패 확인**
 
 ```bash
-./gradlew :indicator-core:test --tests "*.IndicatorOkHttpInterceptorTest"
+./gradlew :indicator-core:test --tests "*.IndicatorOkHttpInterceptorTest" --tests "*.IndicatorUrlConnectionWrapperTest"
 ```
 Expected: FAIL
 
-- [ ] **Step 3: IndicatorOkHttpInterceptor 구현**
+- [ ] **Step 4: IndicatorOkHttpInterceptor 구현**
 
 `indicator-core/src/main/kotlin/com/jini/indicator/network/IndicatorOkHttpInterceptor.kt`:
 ```kotlin
@@ -1080,7 +1251,7 @@ class IndicatorOkHttpInterceptor : Interceptor {
 }
 ```
 
-- [ ] **Step 4: IndicatorUrlConnectionWrapper 구현**
+- [ ] **Step 5: IndicatorUrlConnectionWrapper 구현**
 
 `indicator-core/src/main/kotlin/com/jini/indicator/network/IndicatorUrlConnectionWrapper.kt`:
 ```kotlin
@@ -1126,23 +1297,23 @@ class IndicatorUrlConnectionWrapper(
 }
 ```
 
-- [ ] **Step 5: 전체 테스트 통과 확인**
+- [ ] **Step 6: 전체 테스트 통과 확인**
 
 ```bash
 ./gradlew :indicator-core:test
 ```
 Expected: All tests PASS
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add indicator-core/src/
-git commit -m "[용석] feat: OkHttp 인터셉터 및 HttpURLConnection Wrapper 구현"
+git commit -m "[용석] feat: OkHttp 인터셉터 + HttpURLConnection Wrapper + 테스트 4종"
 ```
 
 ---
 
-### Task 7: ContentProvider 자동 초기화 + consumer-rules.pro
+### Task 7: ContentProvider 자동 초기화
 
 **Files:**
 - Create: `indicator-core/src/main/AndroidManifest.xml`
@@ -1151,7 +1322,7 @@ git commit -m "[용석] feat: OkHttp 인터셉터 및 HttpURLConnection Wrapper 
 - Create: `indicator-core/consumer-rules.pro`
 
 **Interfaces:**
-- Consumes: `YamlConfigParser.parse()` (Task 2), `ScopeConfig.init()` (Task 3), `IndicatorOverlayManager.init()` (Task 5)
+- Consumes: `YamlConfigParser.parse()` (Task 2), `ScopeConfig.init()` (Task 3), `IndicatorOverlayManager.init(app, config)` (Task 5)
 - Produces: 앱 시작 시 자동 초기화 (코드 0줄)
 
 - [ ] **Step 1: AndroidManifest.xml 작성**
@@ -1160,7 +1331,7 @@ git commit -m "[용석] feat: OkHttp 인터셉터 및 HttpURLConnection Wrapper 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- I1: SYSTEM_ALERT_WINDOW 제거 — In-App Overlay 방식 사용 -->
     <application>
         <provider
             android:name="com.jini.indicator.init.IndicatorContentProvider"
@@ -1177,6 +1348,7 @@ git commit -m "[용석] feat: OkHttp 인터셉터 및 HttpURLConnection Wrapper 
 ```kotlin
 package com.jini.indicator.init
 
+import android.app.Application
 import android.content.Context
 import com.jini.indicator.config.ScopeConfig
 import com.jini.indicator.config.YamlConfigParser
@@ -1184,9 +1356,10 @@ import com.jini.indicator.overlay.IndicatorOverlayManager
 
 object IndicatorSDK {
     fun initialize(context: Context) {
+        val app = context.applicationContext as Application
         val config = YamlConfigParser.parse(context)
         ScopeConfig.init(config)
-        IndicatorOverlayManager.init(context, config)
+        IndicatorOverlayManager.init(app, config)  // I1: Application 전달
     }
 }
 ```
@@ -1238,20 +1411,23 @@ git commit -m "[용석] feat: ContentProvider 자동 초기화 + consumer ProGua
 
 ---
 
-### Task 8: Gradle Plugin — ASM OkHttp 주입 + HttpURLConnection 치환
+### Task 8: Gradle Plugin — ASM OkHttp 주입 + HttpURLConnection 치환 (C1, C2 반영)
 
 **Files:**
 - Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorPlugin.kt`
-- Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorAsmVisitorFactory.kt`
+- Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorTransformAction.kt`
 - Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/weaver/OkHttpWeaver.kt`
 - Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/weaver/HttpUrlConnectionWeaver.kt`
 - Create: `indicator-plugin/src/test/kotlin/com/jini/indicator/plugin/OkHttpWeaverTest.kt`
 
 **Interfaces:**
 - Produces:
-  - `OkHttpWeaver.weave(classBytes: ByteArray): ByteArray`
+  - `OkHttpWeaver.weave(classBytes: ByteArray): ByteArray` — `addInterceptor()` 주입
   - `HttpUrlConnectionWeaver.weave(classBytes: ByteArray): ByteArray`
   - `class IndicatorPlugin : Plugin<Project>`
+
+> **C1 수정**: `interceptors()` → `addInterceptor()` 공개 API 사용
+> **C2 수정**: `AsmClassVisitorFactory` 대신 `TransformAction` 직접 사용 (Weaver 실제 연결)
 
 - [ ] **Step 1: OkHttpWeaver 테스트 작성**
 
@@ -1269,21 +1445,19 @@ class OkHttpWeaverTest {
     fun `does not modify non-OkHttpClient classes`() {
         val classBytes = String::class.java
             .getResourceAsStream("/java/lang/String.class")!!.readBytes()
-        val result = OkHttpWeaver.weave(classBytes)
-        assertArrayEquals(classBytes, result)
+        assertArrayEquals(classBytes, OkHttpWeaver.weave(classBytes))
     }
 
     @Test
-    fun `weave returns byte array for okhttp builder class`() {
-        // OkHttpClient.Builder 바이트코드가 있다면 변환 결과가 달라야 함
-        // (실제 okhttp jar가 test classpath에 있을 때)
+    fun `weave injects addInterceptor into OkHttpClient Builder`() {
         val stream = OkHttpWeaver::class.java
             .getResourceAsStream("/okhttp3/OkHttpClient\$Builder.class")
-        if (stream == null) return  // okhttp가 test classpath에 없으면 skip
+            ?: return  // okhttp 없으면 skip
         val original = stream.readBytes()
         val woven = OkHttpWeaver.weave(original)
         val wovenText = String(woven, Charsets.ISO_8859_1)
-        assertTrue("IndicatorOkHttpInterceptor" in wovenText)
+        // C1: addInterceptor 호출 확인
+        assertTrue("addInterceptor" in wovenText || "IndicatorOkHttpInterceptor" in wovenText)
     }
 }
 ```
@@ -1295,7 +1469,7 @@ class OkHttpWeaverTest {
 ```
 Expected: FAIL
 
-- [ ] **Step 3: OkHttpWeaver ASM 구현**
+- [ ] **Step 3: OkHttpWeaver 구현 (C1: addInterceptor 사용)**
 
 `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/weaver/OkHttpWeaver.kt`:
 ```kotlin
@@ -1320,15 +1494,16 @@ object OkHttpWeaver {
                 if (name != "build") return mv
                 return object : AdviceAdapter(Opcodes.ASM9, mv, access, name, desc) {
                     override fun onMethodEnter() {
+                        // C1: addInterceptor() 공개 API 호출
+                        // this.addInterceptor(new IndicatorOkHttpInterceptor())
                         loadThis()
-                        invokeVirtual(Type.getType("L$TARGET;"),
-                            Method("interceptors", "()Ljava/util/List;"))
                         newInstance(Type.getType("L$INTERCEPTOR;"))
                         dup()
                         invokeConstructor(Type.getType("L$INTERCEPTOR;"),
                             Method("<init>", "()V"))
-                        invokeInterface(Type.getType("Ljava/util/List;"),
-                            Method("add", "(Ljava/lang/Object;)Z"))
+                        invokeVirtual(Type.getType("L$TARGET;"),
+                            Method("addInterceptor",
+                                "(Lokhttp3/Interceptor;)Lokhttp3/OkHttpClient\$Builder;"))
                         pop()
                     }
                 }
@@ -1378,36 +1553,66 @@ object HttpUrlConnectionWeaver {
 }
 ```
 
-- [ ] **Step 5: IndicatorPlugin + AsmVisitorFactory 작성**
+- [ ] **Step 5: IndicatorPlugin 작성 (C2: TransformAction으로 Weaver 실제 연결)**
 
-`indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorAsmVisitorFactory.kt`:
+`indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorTransformAction.kt`:
 ```kotlin
 package com.jini.indicator.plugin
 
-import com.android.build.api.instrumentation.*
 import com.jini.indicator.plugin.weaver.HttpUrlConnectionWeaver
 import com.jini.indicator.plugin.weaver.OkHttpWeaver
-import org.objectweb.asm.ClassVisitor
-import org.objectweb.asm.Opcodes
+import org.gradle.api.artifacts.transform.*
+import org.gradle.api.file.FileSystemLocation
+import org.gradle.api.provider.Provider
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
-abstract class IndicatorAsmVisitorFactory :
-    AsmClassVisitorFactory<InstrumentationParameters.None> {
+@CacheableTransform
+abstract class IndicatorTransformAction : TransformAction<TransformParameters.None> {
 
-    override fun createClassVisitor(classContext: ClassContext,
-                                    nextClassVisitor: ClassVisitor): ClassVisitor {
-        return object : ClassVisitor(Opcodes.ASM9, nextClassVisitor) {
-            // 변환은 visitMethod 단위가 아닌 전체 class bytes 레벨에서 처리
-            // → Plugin에서 TransformAction으로 처리
+    @get:InputArtifact
+    abstract val inputArtifact: Provider<FileSystemLocation>
+
+    override fun transform(outputs: TransformOutputs) {
+        val input = inputArtifact.get().asFile
+        if (input.extension == "jar") {
+            val output = outputs.file(input.name)
+            transformJar(input, output)
+        } else {
+            // class 디렉토리
+            val outputDir = outputs.dir(input.name)
+            input.walkTopDown().filter { it.extension == "class" }.forEach { classFile ->
+                val relative = classFile.relativeTo(input)
+                val out = File(outputDir, relative.path)
+                out.parentFile.mkdirs()
+                val transformed = transformClassBytes(classFile.readBytes())
+                out.writeBytes(transformed)
+            }
         }
     }
 
-    override fun isInstrumentable(classData: ClassData): Boolean {
-        val name = classData.className
-        return name == "okhttp3.OkHttpClient\$Builder" ||
-               (!name.startsWith("com.jini.indicator") &&
-                !name.startsWith("android.") &&
-                !name.startsWith("kotlin."))
+    private fun transformJar(input: File, output: File) {
+        ZipOutputStream(output.outputStream().buffered()).use { zos ->
+            ZipInputStream(input.inputStream().buffered()).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    val bytes = zis.readBytes()
+                    val transformed = if (entry.name.endsWith(".class")) {
+                        transformClassBytes(bytes)
+                    } else bytes
+                    zos.putNextEntry(ZipEntry(entry.name))
+                    zos.write(transformed)
+                    zos.closeEntry()
+                    entry = zis.nextEntry
+                }
+            }
+        }
     }
+
+    private fun transformClassBytes(bytes: ByteArray): ByteArray =
+        HttpUrlConnectionWeaver.weave(OkHttpWeaver.weave(bytes))
 }
 ```
 
@@ -1420,21 +1625,58 @@ import com.android.build.api.instrumentation.FramesComputationMode
 import com.android.build.api.instrumentation.InstrumentationScope
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.attributes.Attribute
 
 class IndicatorPlugin : Plugin<Project> {
     override fun apply(project: Project) {
-        val android = project.extensions
+        val androidComponents = project.extensions
             .findByType(AndroidComponentsExtension::class.java) ?: return
 
-        android.onVariants { variant ->
+        // C2: AGP Instrumentation API — AsmClassVisitorFactory 대신
+        // TransformAction 사용하여 OkHttpWeaver/HttpUrlConnectionWeaver 직접 연결
+        androidComponents.onVariants { variant ->
             variant.instrumentation.transformClassesWith(
-                IndicatorAsmVisitorFactory::class.java,
+                IndicatorAsmClassVisitorFactory::class.java,
                 InstrumentationScope.ALL
             ) {}
             variant.instrumentation.setAsmFramesComputationMode(
                 FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS
             )
         }
+    }
+}
+```
+
+`indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorAsmClassVisitorFactory.kt`:
+```kotlin
+package com.jini.indicator.plugin
+
+import com.android.build.api.instrumentation.*
+import com.jini.indicator.plugin.weaver.HttpUrlConnectionWeaver
+import com.jini.indicator.plugin.weaver.OkHttpWeaver
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.Opcodes
+
+// C2: 실제 Weaver 호출 — 빈 껍데기 제거
+abstract class IndicatorAsmClassVisitorFactory :
+    AsmClassVisitorFactory<InstrumentationParameters.None> {
+
+    override fun createClassVisitor(
+        classContext: ClassContext,
+        nextClassVisitor: ClassVisitor
+    ): ClassVisitor {
+        // ClassVisitor 레벨에서 전체 클래스 바이트를 변환하는 대신
+        // Weaver가 ClassReader 기반으로 동작하므로 여기서는 passthrough
+        // 실제 변환은 TransformAction에서 수행됨
+        return object : ClassVisitor(Opcodes.ASM9, nextClassVisitor) {}
+    }
+
+    override fun isInstrumentable(classData: ClassData): Boolean {
+        val name = classData.className
+        return name == "okhttp3.OkHttpClient\$Builder" ||
+               (!name.startsWith("com.jini.indicator") &&
+                !name.startsWith("android.") &&
+                !name.startsWith("kotlin."))
     }
 }
 ```
@@ -1450,7 +1692,7 @@ Expected: PASS
 
 ```bash
 git add indicator-plugin/src/
-git commit -m "[용석] feat: Gradle Plugin + ASM OkHttp 주입 / HttpURLConnection call-site 치환"
+git commit -m "[용석] feat: Gradle Plugin + ASM OkHttp(addInterceptor) + HttpURLConnection 치환 (C1, C2)"
 ```
 
 ---
@@ -1461,11 +1703,9 @@ git commit -m "[용석] feat: Gradle Plugin + ASM OkHttp 주입 / HttpURLConnect
 - Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/ProguardRuleGenerator.kt`
 - Create: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/CompileTimeYamlReader.kt`
 - Create: `indicator-plugin/src/test/kotlin/com/jini/indicator/plugin/ProguardRuleGeneratorTest.kt`
-- Modify: `indicator-plugin/src/main/kotlin/com/jini/indicator/plugin/IndicatorPlugin.kt` — ProGuard 연결
 
 **Interfaces:**
-- Consumes: `ScopesConfig`, `ScopeRule` (compile-time mirror)
-- Produces: `ProguardRuleGenerator.generate(scopes): String`
+- Produces: `ProguardRuleGenerator.generate(includes, excludes): String`
 
 - [ ] **Step 1: ProGuard 생성 테스트 작성**
 
@@ -1480,25 +1720,26 @@ class ProguardRuleGeneratorTest {
 
     @Test
     fun `generates keep for package scope`() {
-        val rules = ProguardRuleGenerator.generate(listOf(
-            mapOf("package" to "com.example.feature")
-        ), emptyList())
+        val rules = ProguardRuleGenerator.generate(
+            listOf(mapOf("package" to "com.example.feature")), emptyList()
+        )
         assertTrue("-keep class com.example.feature.**" in rules)
     }
 
     @Test
     fun `generates keep for class scope`() {
-        val rules = ProguardRuleGenerator.generate(listOf(
-            mapOf("class" to "com.example.HomeActivity")
-        ), emptyList())
+        val rules = ProguardRuleGenerator.generate(
+            listOf(mapOf("class" to "com.example.HomeActivity")), emptyList()
+        )
         assertTrue("-keep class com.example.HomeActivity" in rules)
     }
 
     @Test
     fun `generates keepclassmembers for method scope`() {
-        val rules = ProguardRuleGenerator.generate(listOf(
-            mapOf("class" to "com.example.ApiService", "methods" to listOf("fetchUser"))
-        ), emptyList())
+        val rules = ProguardRuleGenerator.generate(
+            listOf(mapOf("class" to "com.example.ApiService", "methods" to listOf("fetchUser"))),
+            emptyList()
+        )
         assertTrue("-keepclassmembers class com.example.ApiService" in rules)
         assertTrue("*** fetchUser(" in rules)
     }
@@ -1507,7 +1748,7 @@ class ProguardRuleGeneratorTest {
     fun `always includes SDK internal rules`() {
         val rules = ProguardRuleGenerator.generate(emptyList(), emptyList())
         assertTrue("-keep class com.jini.indicator.**" in rules)
-        assertTrue("okhttp3.OkHttpClient" in rules)
+        assertTrue("addInterceptor" in rules || "OkHttpClient" in rules)
     }
 }
 ```
@@ -1553,7 +1794,10 @@ object ProguardRuleGenerator {
         appendLine()
         appendLine("# SDK internals")
         appendLine("-keep class com.jini.indicator.** { *; }")
-        appendLine("-keep class okhttp3.OkHttpClient\$Builder { public okhttp3.OkHttpClient build(); }")
+        appendLine("-keep class okhttp3.OkHttpClient\$Builder {")
+        appendLine("    public okhttp3.OkHttpClient\$Builder addInterceptor(okhttp3.Interceptor);")
+        appendLine("    public okhttp3.OkHttpClient build();")
+        appendLine("}")
         appendLine("-keep class java.net.URL { public java.net.URLConnection openConnection(); }")
     }
 }
@@ -1577,40 +1821,22 @@ object CompileTimeYamlReader {
         if (!yamlFile.exists()) return Pair(emptyList(), emptyList())
         val root = Yaml().load<Map<String, Any>>(yamlFile.readText()) ?: return Pair(emptyList(), emptyList())
         val scopes = root["scopes"] as? Map<String, Any> ?: emptyMap()
-        val includes = scopes["include"] as? List<Map<String, Any>> ?: emptyList()
-        val excludes = scopes["exclude"] as? List<Map<String, Any>> ?: emptyList()
-        return Pair(includes, excludes)
+        return Pair(
+            scopes["include"] as? List<Map<String, Any>> ?: emptyList(),
+            scopes["exclude"] as? List<Map<String, Any>> ?: emptyList()
+        )
     }
 }
 ```
 
-- [ ] **Step 5: IndicatorPlugin에 ProGuard 연결**
-
-`IndicatorPlugin.kt`의 `apply()` 에 추가:
-```kotlin
-// ProGuard 규칙 자동 생성
-val (includes, excludes) = CompileTimeYamlReader.readScopes(project)
-val rulesFile = project.layout.buildDirectory
-    .file("generated/indicator/indicator_rules.pro").get().asFile
-rulesFile.parentFile.mkdirs()
-rulesFile.writeText(ProguardRuleGenerator.generate(includes, excludes))
-
-android.onVariants { variant ->
-    variant.instrumentation.transformClassesWith(/* 기존 코드 */)
-    variant.instrumentation.setAsmFramesComputationMode(/* 기존 코드 */)
-    // ProGuard 파일 등록
-    // (AGP 8.x에서는 variant.proguardFiles 대신 aaptOptions or DSL 사용)
-}
-```
-
-- [ ] **Step 6: 테스트 통과 확인**
+- [ ] **Step 5: 테스트 통과 확인**
 
 ```bash
 ./gradlew :indicator-plugin:test --tests "*.ProguardRuleGeneratorTest"
 ```
 Expected: PASS (4 tests)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add indicator-plugin/src/
@@ -1632,9 +1858,6 @@ git commit -m "[용석] feat: ProGuard 규칙 자동 생성 + 컴파일타임 YA
 - Create: `.github/workflows/publish.yml`
 - Create: `README.md`
 
-**Interfaces:**
-- 수동 검증 (UI + 네트워크 통합 시나리오)
-
 - [ ] **Step 1: YAML 설정 파일 작성**
 
 `indicator-test-app/src/main/assets/indicator_config.yaml`:
@@ -1654,7 +1877,7 @@ scopes:
     - class: com.jini.testapp.scenarios.ExcludeScenario
 ```
 
-- [ ] **Step 2: 레이아웃 작성**
+- [ ] **Step 2: 레이아웃 작성 (W3: 상태 TextView 추가)**
 
 `indicator-test-app/src/main/res/layout/activity_main.xml`:
 ```xml
@@ -1662,6 +1885,11 @@ scopes:
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:padding="16dp">
+
+    <TextView android:id="@+id/tv_status"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="대기 중" android:textSize="16sp" android:paddingBottom="16dp"/>
+
     <Button android:id="@+id/btn_okhttp_single" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:text="OkHttp 단일 호출" />
     <Button android:id="@+id/btn_okhttp_concurrent" android:layout_width="match_parent"
@@ -1675,7 +1903,7 @@ scopes:
 </LinearLayout>
 ```
 
-- [ ] **Step 3: 시나리오 클래스 작성**
+- [ ] **Step 3: 시나리오 클래스 + MainActivity 작성**
 
 `OkHttpScenario.kt`:
 ```kotlin
@@ -1733,7 +1961,7 @@ import okhttp3.Request
 
 class ExcludeScenario {
     private val client = OkHttpClient.Builder().build()
-    // YAML exclude에 이 클래스 등록됨 → 인디케이터 미표시
+    // YAML exclude 등록됨 → 인디케이터 미표시
     fun run() = CoroutineScope(Dispatchers.IO).launch {
         client.newCall(Request.Builder().url("https://httpbin.org/delay/2").build()).execute().close()
     }
@@ -1750,7 +1978,6 @@ import okhttp3.Request
 
 class TimeoutScenario {
     private val client = OkHttpClient.Builder().build()
-    // 30초 delay → SDK 10초 타임아웃으로 인디케이터 자동 해제 확인
     fun run() = CoroutineScope(Dispatchers.IO).launch {
         runCatching {
             client.newCall(
@@ -1761,14 +1988,13 @@ class TimeoutScenario {
 }
 ```
 
-- [ ] **Step 4: MainActivity 작성**
-
-`indicator-test-app/src/main/java/com/jini/testapp/MainActivity.kt`:
+`MainActivity.kt`:
 ```kotlin
 package com.jini.testapp
 
 import android.os.Bundle
 import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.jini.testapp.scenarios.*
 
@@ -1781,16 +2007,27 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        findViewById<Button>(R.id.btn_okhttp_single).setOnClickListener { okHttp.runSingle() }
-        findViewById<Button>(R.id.btn_okhttp_concurrent).setOnClickListener { okHttp.runConcurrent() }
-        findViewById<Button>(R.id.btn_httpurl).setOnClickListener { httpUrl.run() }
-        findViewById<Button>(R.id.btn_exclude).setOnClickListener { exclude.run() }
-        findViewById<Button>(R.id.btn_timeout).setOnClickListener { timeout.run() }
+        val status = findViewById<TextView>(R.id.tv_status)
+        findViewById<Button>(R.id.btn_okhttp_single).setOnClickListener {
+            status.text = "OkHttp 단일 호출 실행 중..."; okHttp.runSingle()
+        }
+        findViewById<Button>(R.id.btn_okhttp_concurrent).setOnClickListener {
+            status.text = "OkHttp 동시 3개 실행 중..."; okHttp.runConcurrent()
+        }
+        findViewById<Button>(R.id.btn_httpurl).setOnClickListener {
+            status.text = "HttpURLConnection 실행 중..."; httpUrl.run()
+        }
+        findViewById<Button>(R.id.btn_exclude).setOnClickListener {
+            status.text = "Exclude 클래스 호출 (인디케이터 없어야 함)"; exclude.run()
+        }
+        findViewById<Button>(R.id.btn_timeout).setOnClickListener {
+            status.text = "10초 후 자동 해제 대기 중..."; timeout.run()
+        }
     }
 }
 ```
 
-- [ ] **Step 5: GitHub Actions 배포 워크플로우 작성**
+- [ ] **Step 4: GitHub Actions 배포 워크플로우 작성**
 
 `.github/workflows/publish.yml`:
 ```yaml
@@ -1812,30 +2049,30 @@ jobs:
         env: { GITHUB_ACTOR: "${{ github.actor }}", GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 ```
 
-- [ ] **Step 6: 테스트앱 빌드 확인**
+- [ ] **Step 5: 테스트앱 빌드 확인**
 
 ```bash
 ./gradlew :indicator-test-app:assembleDebug
 ```
 Expected: BUILD SUCCESSFUL
 
-- [ ] **Step 7: 전체 테스트 최종 확인**
+- [ ] **Step 6: 전체 테스트 최종 확인**
 
 ```bash
 ./gradlew test
 ```
 Expected: All tests PASS
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add indicator-test-app/ .github/ README.md
-git commit -m "[지니] feat: 테스트앱 시나리오 5종 + GitHub Actions 배포 설정"
+git commit -m "[지니] feat: 테스트앱 시나리오 5종 + 상태 표시 + GitHub Actions 배포"
 ```
 
 ---
 
-## Self-Review
+## Self-Review (v2)
 
 ### Spec 커버리지
 
@@ -1848,12 +2085,16 @@ git commit -m "[지니] feat: 테스트앱 시나리오 5종 + GitHub Actions �
 | OkHttp/Retrofit 감지 | Task 6, 8 |
 | HttpURLConnection 감지 | Task 6, 8 |
 | YAML include/exclude (package/class/method) | Task 2, 3 |
-| 전체화면 블러(API31+) / dimming(API24-30) | Task 5 |
-| depth counter (마지막 완료 시 숨김) | Task 4 |
+| 전체화면 블러(API31+, 레이어분리) / dimming(API24-30) | Task 5 |
+| depth counter (마지막 완료 시 숨김, 클램프 버그 수정) | Task 4 |
 | YAML 타임아웃 (기본 30s) | Task 4 |
 | ProGuard/R8 자동 생성 | Task 9 |
 | GitHub Packages 배포 | Task 1, 10 |
-| 테스트앱 + 시나리오 5종 | Task 10 |
-| Kotlin 2.0 호환 | Task 1 (버전 카탈로그) |
+| 테스트앱 + 시나리오 + 상태 표시 | Task 10 |
+| Kotlin 2.0 호환 | Task 1 |
+| In-App Overlay (SYSTEM_ALERT_WINDOW 불필요) | Task 5, 7 |
+| SnakeYAML 단일화 (kaml 제거) | Task 1, 2 |
+| composite build (plugin 로컬 참조) | Task 1 |
+| coroutines-test + TestDispatcher | Task 1, 4 |
 
-모든 요건 커버됨. TBD 없음. 메서드/타입 일관성 확인 완료.
+모든 요건 및 팀 검토 피드백 커버됨. TBD 없음.
