@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <application>
+        <provider
+            android:name="com.jini.indicator.init.IndicatorContentProvider"
+            android:authorities="${applicationId}.indicator_provider"
+            android:exported="false"
+            android:initOrder="100" />
+    </application>
+</manifest>

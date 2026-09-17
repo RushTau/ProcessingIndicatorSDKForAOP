@@ -1,0 +1,3 @@
+-keep class com.jini.indicator.** { *; }
+-keep class okhttp3.OkHttpClient$Builder { public okhttp3.OkHttpClient build(); }
+-keep class java.net.URL { public java.net.URLConnection openConnection(); }
