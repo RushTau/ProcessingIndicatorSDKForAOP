@@ -1,5 +1,6 @@
 package com.jini.indicator.context
 
+import com.jini.indicator.overlay.IndicatorOverlayManager
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -10,8 +11,8 @@ object IndicatorContext {
     // Dispatchers.Main은 JVM 테스트에서 미지원 → Default 사용 (UI 전환은 onShow/onHide 콜백에서)
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    internal var onShow: () -> Unit = { /* Task 5에서 IndicatorOverlayManager.show() 연결 */ }
-    internal var onHide: () -> Unit = { /* Task 5에서 IndicatorOverlayManager.hide() 연결 */ }
+    internal var onShow: () -> Unit = { IndicatorOverlayManager.show() }
+    internal var onHide: () -> Unit = { IndicatorOverlayManager.hide() }
 
     fun acquire(callId: String, timeoutMs: Long) {
         if (depth.getAndIncrement() == 0) onShow()
