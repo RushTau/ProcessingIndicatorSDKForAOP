@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    // id("com.jini.indicator")  // Task 8 구현 후 활성화
+    id("com.jini.indicator")
 }
 android {
     namespace = "com.jini.testapp"; compileSdk = 34

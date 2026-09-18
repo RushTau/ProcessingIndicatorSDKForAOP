@@ -1,0 +1,13 @@
+indicator:
+  timeout: 10000
+  overlay:
+    blur: true
+    dim_alpha: 0.6
+  image:
+    type: default
+
+scopes:
+  include:
+    - package: com.jini.testapp.scenarios
+  exclude:
+    - class: com.jini.testapp.scenarios.ExcludeScenario
