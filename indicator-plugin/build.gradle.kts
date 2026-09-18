@@ -4,12 +4,12 @@ plugins {
     `maven-publish`
 }
 dependencies {
-    implementation(libs.asm)
-    implementation(libs.asm.commons)
-    implementation(libs.snakeyaml)
+    implementation("org.ow2.asm:asm:9.7")
+    implementation("org.ow2.asm:asm-commons:9.7")
+    implementation("org.yaml:snakeyaml:2.3")
     compileOnly("com.android.tools.build:gradle:8.6.0")
-    testImplementation(libs.junit)
-    testImplementation(libs.okhttp)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 gradlePlugin {
     plugins {

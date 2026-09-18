@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("indicator-plugin")
     repositories { google(); mavenCentral(); gradlePluginPortal() }
 }
 dependencyResolutionManagement {
@@ -6,4 +7,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "ProcessingIndicatorSDKForAOP"
-include(":indicator-plugin", ":indicator-core", ":indicator-test-app")
+include(":indicator-core", ":indicator-test-app")
