@@ -11,15 +11,15 @@ import java.io.File
 class IndicatorPlugin : Plugin<Project> {
 
     override fun apply(project: Project) {
-        project.logger.lifecycle("[IndicatorPlugin] apply() called on ${project.name}")
+        project.logger.info("[IndicatorPlugin] apply() called on ${project.name}")
 
         val androidComponents = project.extensions
             .findByType(AndroidComponentsExtension::class.java)
         if (androidComponents == null) {
-            project.logger.lifecycle("[IndicatorPlugin] AndroidComponentsExtension NOT found")
+            project.logger.info("[IndicatorPlugin] AndroidComponentsExtension NOT found")
             return
         }
-        project.logger.lifecycle("[IndicatorPlugin] AndroidComponentsExtension found, registering instrumentation")
+        project.logger.info("[IndicatorPlugin] AndroidComponentsExtension found, registering instrumentation")
 
         androidComponents.onVariants { variant ->
             variant.instrumentation.transformClassesWith(
