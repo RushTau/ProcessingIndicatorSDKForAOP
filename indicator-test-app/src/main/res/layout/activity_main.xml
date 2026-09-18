@@ -27,7 +27,7 @@
         android:id="@+id/btn_exclude"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Exclude 클래스 (인디케이터 없음)" />
+        android:text="Exclude 클래스 (scope 제외 미구현 — 인디케이터 표시됨)" />
 
     <Button
         android:id="@+id/btn_timeout"

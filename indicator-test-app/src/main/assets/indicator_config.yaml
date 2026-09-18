@@ -10,4 +10,6 @@ scopes:
   include:
     - package: com.jini.testapp.scenarios
   exclude:
+    # TODO: compile-time ASM scope exclusion 미구현
+    # isInstrumentable()에서 YAML exclude 미참조 — ExcludeScenario도 주입됨
     - class: com.jini.testapp.scenarios.ExcludeScenario
