@@ -1,0 +1,633 @@
+<title>ProcessingIndicator SDK</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+:root {
+  --bg: #f0f3fa;
+  --surface: #ffffff;
+  --surface-2: #f5f7fd;
+  --border: #dde2f0;
+  --accent: #3ddc84;
+  --accent-soft: rgba(61,220,132,.14);
+  --text: #1a1d2e;
+  --text-2: #4e5470;
+  --text-3: #8b92aa;
+  --code-bg: #181c2e;
+  --tag-bg: #eef0fb;
+  --tag-text: #5a628c;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0f1d;
+    --surface: #141727;
+    --surface-2: #1a1f35;
+    --border: #242a44;
+    --text: #e2e8f8;
+    --text-2: #9aa5c8;
+    --text-3: #5c6590;
+    --tag-bg: #1c2240;
+    --tag-text: #8b99cc;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0f1d;
+  --surface: #141727;
+  --surface-2: #1a1f35;
+  --border: #242a44;
+  --text: #e2e8f8;
+  --text-2: #9aa5c8;
+  --text-3: #5c6590;
+  --tag-bg: #1c2240;
+  --tag-text: #8b99cc;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Outfit', system-ui, sans-serif; font-size: 16px; line-height: 1.75; }
+
+/* Layout */
+.page { display: flex; min-height: 100vh; }
+.sidebar { width: 248px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
+.main { flex: 1; min-width: 0; padding: 48px 40px 96px; }
+.content { max-width: 740px; }
+
+/* Sidebar */
+.sidebar-head { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+.logo-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.logo-name { font-weight: 700; font-size: 13.5px; line-height: 1.25; }
+.logo-sub { font-size: 11px; color: var(--text-3); font-weight: 300; }
+.v-badge { display: inline-flex; align-items: center; margin-top: 10px; padding: 2px 8px; background: var(--tag-bg); color: var(--tag-text); font-size: 11px; font-family: 'JetBrains Mono', monospace; border-radius: 5px; font-weight: 500; }
+.nav { padding: 14px 10px; flex: 1; }
+.nav-group { margin-bottom: 22px; }
+.nav-cat { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); padding: 0 10px; margin-bottom: 5px; display: block; }
+.nav-link { display: block; padding: 6px 10px; border-radius: 7px; color: var(--text-2); text-decoration: none; font-size: 14px; font-weight: 400; transition: background .12s, color .12s; }
+.nav-link:hover { background: var(--accent-soft); color: var(--text); }
+.nav-link.active { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.sidebar-foot { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.gh-link { font-size: 12px; color: var(--text-3); text-decoration: none; display: flex; align-items: center; gap: 5px; }
+.gh-link:hover { color: var(--accent); }
+.theme-toggle { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.theme-toggle:hover { background: var(--tag-bg); color: var(--text); }
+
+/* Mobile */
+.mob-btn { display: none; position: fixed; top: 14px; left: 14px; z-index: 200; width: 36px; height: 36px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; align-items: center; justify-content: center; font-size: 18px; color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 90; }
+@media (max-width: 720px) {
+  .sidebar { position: fixed; left: -260px; top: 0; bottom: 0; z-index: 100; transition: left .22s ease; width: 248px; }
+  .sidebar.open { left: 0; }
+  .overlay.open { display: block; }
+  .mob-btn { display: flex; }
+  .main { padding: 56px 16px 72px; }
+}
+
+/* Page hero */
+.hero { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 44px; padding-bottom: 36px; border-bottom: 1px solid var(--border); }
+.hero-icon { width: 56px; height: 56px; background: var(--accent); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
+h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; }
+.hero-desc { color: var(--text-2); font-size: 16px; margin-top: 5px; font-weight: 300; line-height: 1.6; }
+.hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge.green { background: var(--accent-soft); color: #1a7a48; }
+.badge.green { color: #0d6e3f; }
+:root[data-theme="dark"] .badge.green, @media (prefers-color-scheme:dark) { }
+.badge.blue { background: rgba(99,102,241,.14); color: #6366f1; }
+.badge.gray { background: var(--tag-bg); color: var(--tag-text); }
+
+/* Sections */
+section { margin-bottom: 60px; scroll-margin-top: 20px; }
+h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 2px solid var(--border); display: flex; align-items: center; gap: 10px; }
+h2 .sec-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); background: var(--accent-soft); padding: 2px 7px; border-radius: 5px; font-weight: 500; }
+h3 { font-size: 15px; font-weight: 600; margin: 24px 0 10px; color: var(--text); }
+p { margin-bottom: 14px; color: var(--text-2); }
+p:last-child { margin-bottom: 0; }
+p strong { color: var(--text); }
+ul, ol { padding-left: 20px; color: var(--text-2); margin-bottom: 14px; }
+li { margin-bottom: 5px; }
+
+/* Code */
+.code-block { background: var(--code-bg); border-radius: 10px; overflow: hidden; margin: 18px 0; }
+.code-head { display: flex; align-items: center; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.code-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: rgba(255,255,255,.3); text-transform: uppercase; letter-spacing: 0.1em; }
+.copy-btn { background: rgba(255,255,255,.07); border: none; color: rgba(255,255,255,.45); font-size: 11px; padding: 3px 9px; border-radius: 4px; cursor: pointer; font-family: inherit; transition: all .15s; }
+.copy-btn:hover { background: rgba(255,255,255,.14); color: #fff; }
+.copy-btn.ok { color: var(--accent); }
+pre { overflow-x: auto; padding: 18px; }
+code.hljs { background: transparent !important; padding: 0 !important; font-family: 'JetBrains Mono', monospace !important; font-size: 13px !important; line-height: 1.65 !important; }
+code:not(.hljs) { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: var(--tag-bg); color: var(--tag-text); padding: 1px 5px; border-radius: 4px; }
+
+/* hljs token colors */
+.hljs { color: #cdd6f4; }
+.hljs-keyword { color: #cba6f7; }
+.hljs-string, .hljs-attr { color: #a6e3a1; }
+.hljs-number, .hljs-literal { color: #fab387; }
+.hljs-comment { color: #6c7086; font-style: italic; }
+.hljs-title, .hljs-function { color: #89b4fa; }
+.hljs-variable, .hljs-params { color: #f38ba8; }
+.hljs-type, .hljs-class { color: #f9e2af; }
+.hljs-built_in { color: #89dceb; }
+.hljs-property { color: #cdd6f4; }
+.hljs-punctuation { color: #9399b2; }
+
+/* Callouts */
+.callout { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 14px; margin: 18px 0; color: var(--text-2); }
+.callout.warn { border-color: var(--warn); background: rgba(245,158,11,.1); }
+.callout.danger { border-color: var(--danger); background: rgba(239,68,68,.1); }
+.ct { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; color: var(--accent); }
+.callout.warn .ct { color: var(--warn); }
+.callout.danger .ct { color: var(--danger); }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { background: var(--surface-2); padding: 10px 14px; text-align: left; font-weight: 600; font-size: 12px; letter-spacing: 0.02em; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--text); }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-2); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surface-2); }
+td code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--tag-bg); color: var(--tag-text); padding: 1px 5px; border-radius: 4px; }
+
+/* Steps */
+.steps { display: flex; flex-direction: column; }
+.step { display: flex; gap: 16px; position: relative; }
+.step:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 34px; height: calc(100% - 26px); width: 2px; background: var(--border); }
+.step-n { width: 32px; height: 32px; flex-shrink: 0; background: var(--accent); color: #0a1a10; font-weight: 700; font-size: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.step-body { flex: 1; padding-bottom: 28px; }
+.step-title { font-weight: 600; font-size: 15px; margin-bottom: 8px; color: var(--text); }
+
+/* Flow */
+.flow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; margin: 20px 0; }
+.fbox { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 9px 14px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--text-2); min-width: 0; flex: 1; }
+.fbox.hi { background: var(--accent-soft); border-color: var(--accent); color: var(--text); font-weight: 500; }
+.farr { color: var(--text-3); padding: 0 6px; font-size: 16px; flex-shrink: 0; }
+
+/* Issues */
+.issue-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.issue-card { display: flex; align-items: flex-start; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.issue-num { font-family: 'JetBrains Mono', monospace; font-size: 11px; background: var(--tag-bg); color: var(--tag-text); padding: 2px 8px; border-radius: 5px; font-weight: 600; flex-shrink: 0; margin-top: 2px; }
+.issue-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.issue-desc { font-size: 13px; color: var(--text-2); }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<button class="mob-btn" id="mobBtn">☰</button>
+<div class="overlay" id="overlay"></div>
+
+<div class="page">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-head">
+      <a href="#overview" class="logo">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <div class="logo-name">ProcessingIndicator</div>
+          <div class="logo-sub">SDK for AOP</div>
+        </div>
+      </a>
+      <span class="v-badge">v1.0.0</span>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-group">
+        <span class="nav-cat">시작하기</span>
+        <a href="#overview" class="nav-link active">개요</a>
+        <a href="#requirements" class="nav-link">요구사항</a>
+        <a href="#quickstart" class="nav-link">빠른 시작</a>
+      </div>
+      <div class="nav-group">
+        <span class="nav-cat">가이드</span>
+        <a href="#installation" class="nav-link">설치</a>
+        <a href="#configuration" class="nav-link">설정 (YAML)</a>
+        <a href="#how-it-works" class="nav-link">동작 원리</a>
+      </div>
+      <div class="nav-group">
+        <span class="nav-cat">심화</span>
+        <a href="#renderer" class="nav-link">커스텀 렌더러</a>
+        <a href="#troubleshooting" class="nav-link">문제 해결</a>
+        <a href="#known-issues" class="nav-link">알려진 제한사항</a>
+      </div>
+    </nav>
+    <div class="sidebar-foot">
+      <a href="https://github.com/RushTau/ProcessingIndicatorSDKForAOP" class="gh-link" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+      <button class="theme-toggle" id="themeBtn">🌙 다크</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="content">
+
+      <!-- Hero -->
+      <div class="hero" id="overview">
+        <div class="hero-icon">⚡</div>
+        <div>
+          <h1>ProcessingIndicator SDK</h1>
+          <p class="hero-desc">기존 소스 코드 수정 없이 <strong>@IndicatorScope 어노테이션</strong>과 YAML 설정 파일만으로<br>네트워크 인디케이터를 자동 제어하는 Android AOP SDK</p>
+          <div class="hero-badges">
+            <span class="badge green">✓ 소스 무수정</span>
+            <span class="badge blue">Kotlin 2.0</span>
+            <span class="badge gray">AGP 8.6</span>
+            <span class="badge gray">minSdk 24</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overview -->
+      <section id="overview-detail">
+        <h2><span class="sec-num">01</span>개요</h2>
+        <p>OkHttp / HttpURLConnection 네트워크 호출이 발생할 때 화면에 인디케이터(스피너 또는 Lottie 애니메이션)를 자동으로 표시하고, 모든 호출이 완료되면 자동으로 숨깁니다.</p>
+        <p><strong>기존 코드를 한 줄도 수정할 필요가 없습니다.</strong> Gradle 플러그인이 컴파일 타임에 ASM을 통해 바이트코드를 자동 주입합니다.</p>
+
+        <div class="flow">
+          <div class="fbox">빌드 설정<br><small>build.gradle</small></div>
+          <div class="farr">→</div>
+          <div class="fbox hi">ASM 바이트코드 주입<br><small>컴파일 타임</small></div>
+          <div class="farr">→</div>
+          <div class="fbox">런타임 인터셉터<br><small>OkHttp / HttpURL</small></div>
+          <div class="farr">→</div>
+          <div class="fbox">In-App Overlay<br><small>자동 표시/숨김</small></div>
+        </div>
+      </section>
+
+      <!-- Requirements -->
+      <section id="requirements">
+        <h2><span class="sec-num">02</span>요구사항</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>항목</th><th>최소 버전</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>Android Gradle Plugin</td><td><code>8.0+</code></td><td>8.6 권장</td></tr>
+              <tr><td>Kotlin</td><td><code>2.0+</code></td><td></td></tr>
+              <tr><td>Java</td><td><code>17+</code></td><td>JVM target 17</td></tr>
+              <tr><td>minSdk</td><td><code>24</code></td><td>Android 7.0+</td></tr>
+              <tr><td>OkHttp (선택)</td><td><code>4.x</code></td><td>미사용 시 HttpURLConnection만 주입</td></tr>
+              <tr><td>Lottie (선택)</td><td><code>6.x</code></td><td>미사용 시 기본 스피너로 폴백</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Quick Start -->
+      <section id="quickstart">
+        <h2><span class="sec-num">03</span>빠른 시작</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-n">1</div>
+            <div class="step-body">
+              <div class="step-title">settings.gradle.kts — Composite Build 등록</div>
+              <div class="code-block">
+                <div class="code-head"><span class="code-label">settings.gradle.kts</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+                <pre><code class="language-kotlin">pluginManagement {
+    includeBuild("indicator-plugin") // 로컬 빌드
+    // 또는 Maven을 통해 배포된 경우:
+    // repositories { gradlePluginPortal(); google(); mavenCentral() }
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories { google(); mavenCentral() }
+}
+rootProject.name = "MyApp"
+include(":app")</code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-n">2</div>
+            <div class="step-body">
+              <div class="step-title">app/build.gradle.kts — 플러그인 및 의존성 추가</div>
+              <div class="code-block">
+                <div class="code-head"><span class="code-label">app/build.gradle.kts</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+                <pre><code class="language-kotlin">plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.jini.indicator") // ← 추가
+}
+
+dependencies {
+    implementation("com.jini:processing-indicator-aop:1.0.0")
+    // Lottie 사용 시 (선택)
+    implementation("com.airbnb.android:lottie:6.5.2")
+}</code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-n">3</div>
+            <div class="step-body">
+              <div class="step-title">indicator_config.yaml — assets 폴더에 설정 파일 생성</div>
+              <div class="code-block">
+                <div class="code-head"><span class="code-label">src/main/assets/indicator_config.yaml</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+                <pre><code class="language-yaml">indicator:
+  timeout: 10000       # ms, 이 시간 후 자동 숨김
+  overlay:
+    blur: false        # API 31+ 전용
+    dim_alpha: 0.5
+  image:
+    type: default      # default | lottie
+
+scopes:
+  include:
+    - package: com.example.myapp.network  # 이 패키지만 주입
+  # exclude는 추후 지원 예정 (issue #1)</code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-n">4</div>
+            <div class="step-body">
+              <div class="step-title">빌드 및 실행</div>
+              <div class="code-block">
+                <div class="code-head"><span class="code-label">terminal</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+                <pre><code class="language-bash">./gradlew :app:assembleDebug --info | grep "\[IndicatorPlugin\]"
+# 출력: [IndicatorPlugin] AndroidComponentsExtension found, registering instrumentation</code></pre>
+              </div>
+              <p style="margin-top:10px;">앱을 실행하고 네트워크 호출을 발생시키면 인디케이터가 자동으로 표시됩니다.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Installation -->
+      <section id="installation">
+        <h2><span class="sec-num">04</span>설치</h2>
+
+        <h3>방법 A — Composite Build (로컬 소스 참조)</h3>
+        <p>SDK 소스를 직접 포함하는 방식. 개발/디버깅에 적합합니다.</p>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">프로젝트 구조</span></div>
+          <pre><code class="language-bash">MyApp/
+├── app/
+├── indicator-plugin/          ← SDK 플러그인 소스
+│   └── settings.gradle.kts
+├── indicator-core/            ← SDK 런타임 소스
+└── settings.gradle.kts</code></pre>
+        </div>
+
+        <h3>방법 B — Maven (배포 버전)</h3>
+        <div class="callout warn">
+          <div class="ct">⚠ 준비 중</div>
+          Maven Central / GitHub Packages 배포는 준비 중입니다. 현재는 Composite Build 방식을 사용하세요.
+        </div>
+
+        <h3>indicator-plugin/settings.gradle.kts 필수 항목</h3>
+        <p>Composite Build로 포함된 <code>indicator-plugin</code>은 독립적인 Gradle 빌드 컨텍스트에서 실행됩니다. 반드시 자체 <code>settings.gradle.kts</code>가 필요합니다.</p>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">indicator-plugin/settings.gradle.kts</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+          <pre><code class="language-kotlin">rootProject.name = "indicator-plugin"
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}</code></pre>
+        </div>
+        <div class="callout danger">
+          <div class="ct">⛔ 없으면 빌드 실패</div>
+          이 파일 없이 Composite Build를 실행하면 <code>Cannot resolve external dependency ... no repositories are defined</code> 오류가 발생합니다.
+        </div>
+      </section>
+
+      <!-- Configuration -->
+      <section id="configuration">
+        <h2><span class="sec-num">05</span>설정 — indicator_config.yaml</h2>
+        <p><code>src/main/assets/indicator_config.yaml</code> 파일로 인디케이터 동작을 제어합니다. 앱 코드 변경 없이 설정만으로 모든 동작을 조정할 수 있습니다.</p>
+
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">전체 예시</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+          <pre><code class="language-yaml">indicator:
+  timeout: 10000           # 네트워크 응답 없을 시 자동 숨김 대기 시간 (ms)
+  overlay:
+    blur: false            # 배경 블러 (Android 12+ / API 31+ 전용)
+    dim_alpha: 0.5         # 오버레이 배경 어둡기 (0.0 ~ 1.0)
+  image:
+    type: default          # "default" | "lottie"
+    lottie_asset: loading.json  # type: lottie 시 assets 파일명
+
+scopes:
+  include:
+    - package: com.example.app.api      # 패키지 단위 포함
+    - class: com.example.app.SomeClass  # 클래스 단위 포함
+  exclude:
+    # ⚠ 현재 미구현 — issue #1 참조
+    - class: com.example.app.ExcludedClass</code></pre>
+        </div>
+
+        <h3>설정 항목 레퍼런스</h3>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>키</th><th>타입</th><th>기본값</th><th>설명</th></tr></thead>
+            <tbody>
+              <tr><td><code>indicator.timeout</code></td><td>Int (ms)</td><td><code>10000</code></td><td>타임아웃 후 인디케이터 자동 숨김</td></tr>
+              <tr><td><code>indicator.overlay.blur</code></td><td>Boolean</td><td><code>false</code></td><td>배경 블러 — API 31+ 전용</td></tr>
+              <tr><td><code>indicator.overlay.dim_alpha</code></td><td>Float (0~1)</td><td><code>0.5</code></td><td>반투명 배경 어둡기</td></tr>
+              <tr><td><code>indicator.image.type</code></td><td>String</td><td><code>default</code></td><td><code>default</code> 또는 <code>lottie</code></td></tr>
+              <tr><td><code>indicator.image.lottie_asset</code></td><td>String</td><td>—</td><td>type=lottie 시 assets 폴더 내 파일명</td></tr>
+              <tr><td><code>scopes.include</code></td><td>List</td><td>—</td><td>인터셉터 주입 대상 (package: 또는 class:)</td></tr>
+              <tr><td><code>scopes.exclude</code></td><td>List</td><td>—</td><td>주입 제외 대상 ⚠ 미구현</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section id="how-it-works">
+        <h2><span class="sec-num">06</span>동작 원리</h2>
+
+        <h3>컴파일 타임 — ASM 바이트코드 주입</h3>
+        <p>Gradle 플러그인(<code>com.jini.indicator</code>)이 AGP의 <code>AsmClassVisitorFactory</code>를 통해 컴파일된 클래스 파일을 순회합니다. <code>scopes.include</code>에 해당하는 클래스의 <strong>OkHttpClient 빌드 코드</strong>와 <strong>HttpURLConnection 호출</strong>을 찾아 자동으로 인터셉터를 주입합니다.</p>
+
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">주입 전/후 (개념)</span></div>
+          <pre><code class="language-kotlin">// 원본 코드 (개발자가 작성한 그대로)
+val client = OkHttpClient.Builder().build()
+
+// 컴파일 후 바이트코드 (SDK가 자동 주입)
+val client = OkHttpClient.Builder()
+    .addInterceptor(IndicatorOkHttpInterceptor.getInstance())
+    .build()</code></pre>
+        </div>
+
+        <h3>런타임 — 자동 초기화</h3>
+        <p><code>IndicatorContentProvider</code>가 앱 시작 시 자동으로 SDK를 초기화합니다. 별도의 <code>Application.onCreate()</code> 코드가 필요 없습니다.</p>
+
+        <h3>In-App Overlay — 인디케이터 표시</h3>
+        <p><code>ActivityLifecycleCallbacks</code>로 현재 활성 Activity를 추적하고, 네트워크 호출 시 해당 Activity의 Window 위에 오버레이를 표시합니다. <code>WindowManager</code>나 <code>SYSTEM_ALERT_WINDOW</code> 퍼미션 없이 동작합니다.</p>
+
+        <h3>동시 호출 추적 — AtomicInteger Depth Counter</h3>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">동시 호출 처리 로직 (개념)</span></div>
+          <pre><code class="language-kotlin">// 네트워크 요청 시작
+depth.incrementAndGet()  // depth = 1, 2, 3...
+showIndicator()
+
+// 네트워크 요청 완료
+val remaining = depth.decrementAndGet()
+if (remaining <= 0) {
+    depth.set(0)         // 클램프 (음수 방지)
+    hideIndicator()
+}</code></pre>
+        </div>
+        <p>3개의 동시 요청이 있을 때 depth는 3이 되고, 각 요청이 완료될 때마다 감소합니다. 마지막 요청이 완료되면 인디케이터가 숨겨집니다.</p>
+      </section>
+
+      <!-- Renderer -->
+      <section id="renderer">
+        <h2><span class="sec-num">07</span>커스텀 렌더러</h2>
+
+        <h3>기본 렌더러 (DefaultSpinnerRenderer)</h3>
+        <p>Lottie 의존성 없이 기본 스피너를 표시합니다. <code>indicator_config.yaml</code>에서 <code>type: default</code>로 설정합니다.</p>
+
+        <h3>Lottie 렌더러</h3>
+        <p>Lottie 파일(<code>.json</code>)을 애니메이션으로 표시합니다.</p>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">설정</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+          <pre><code class="language-yaml">indicator:
+  image:
+    type: lottie
+    lottie_asset: my_loading.json  # src/main/assets/my_loading.json</code></pre>
+        </div>
+        <div class="callout">
+          <div class="ct">ℹ 폴백</div>
+          <code>lottie</code>로 설정했더라도 앱에 Lottie 의존성이 없으면 자동으로 <code>DefaultSpinnerRenderer</code>로 폴백합니다.
+        </div>
+      </section>
+
+      <!-- Troubleshooting -->
+      <section id="troubleshooting">
+        <h2><span class="sec-num">08</span>문제 해결</h2>
+
+        <h3>Plugin not found: 'com.jini.indicator'</h3>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">확인 사항</span></div>
+          <pre><code class="language-kotlin">// settings.gradle.kts — includeBuild가 pluginManagement 블록 안에 있어야 합니다
+pluginManagement {
+    includeBuild("indicator-plugin")  // ← 이 위치가 맞습니다
+    repositories { ... }
+}
+
+// ❌ 잘못된 위치 (pluginManagement 밖)
+includeBuild("indicator-plugin")  // 플러그인 미인식</code></pre>
+        </div>
+
+        <h3>Cannot resolve external dependency (no repositories)</h3>
+        <p><code>indicator-plugin/settings.gradle.kts</code>가 없거나 <code>repositories</code> 블록이 없는 경우입니다.</p>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">indicator-plugin/settings.gradle.kts 필수</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+          <pre><code class="language-kotlin">rootProject.name = "indicator-plugin"
+
+dependencyResolutionManagement {
+    repositories {
+        google(); mavenCentral(); gradlePluginPortal()
+    }
+}</code></pre>
+        </div>
+
+        <h3>인디케이터가 표시되지 않음</h3>
+        <p>빌드 로그에서 플러그인 적용 여부를 확인합니다:</p>
+        <div class="code-block">
+          <div class="code-head"><span class="code-label">terminal</span><button class="copy-btn" onclick="copyCode(this)">복사</button></div>
+          <pre><code class="language-bash">./gradlew :app:assembleDebug --info 2>&1 | grep "\[IndicatorPlugin\]"
+
+# 정상: [IndicatorPlugin] AndroidComponentsExtension found, registering instrumentation
+# 문제: [IndicatorPlugin] AndroidComponentsExtension NOT found
+#   → AGP 버전 확인: compileOnly("com.android.tools.build:gradle:X.X.X") 버전이 맞아야 합니다</code></pre>
+        </div>
+
+        <h3>네트워크 호출은 있는데 인디케이터가 뜨지 않음</h3>
+        <p><code>scopes.include</code>의 패키지명이 실제 네트워크 호출 클래스의 패키지와 일치하는지 확인합니다. 패키지명은 정확히 일치해야 합니다 (prefix 매칭).</p>
+      </section>
+
+      <!-- Known Issues -->
+      <section id="known-issues">
+        <h2><span class="sec-num">09</span>알려진 제한사항</h2>
+        <div class="issue-list">
+          <div class="issue-card">
+            <span class="issue-num">#1</span>
+            <div>
+              <div class="issue-title">compile-time scope exclusion 미구현</div>
+              <div class="issue-desc"><code>scopes.exclude</code> 설정이 현재 적용되지 않습니다. <code>ProguardRuleGenerator</code>와 <code>IndicatorClassVisitorFactory.isInstrumentable()</code>에서 YAML exclude 항목을 참조하지 않아 모든 include 대상 클래스에 주입됩니다.</div>
+            </div>
+          </div>
+          <div class="issue-card">
+            <span class="issue-num">#2</span>
+            <div>
+              <div class="issue-title">테스트 앱 CoroutineScope 취소 경로 없음</div>
+              <div class="issue-desc">sample 시나리오 클래스들이 Activity 라이프사이클과 무관한 Scope를 사용합니다. 실제 프로덕션 앱에서는 ViewModel이나 Activity의 lifecycleScope 사용을 권장합니다.</div>
+            </div>
+          </div>
+          <div class="issue-card">
+            <span class="issue-num">#4</span>
+            <div>
+              <div class="issue-title">overlay.blur — API 31+ (Android 12+) 전용</div>
+              <div class="issue-desc"><code>indicator.overlay.blur: true</code>는 Android 12 이상에서만 동작합니다. minSdk 24 기기에서는 이 옵션을 <code>false</code>로 설정하세요.</div>
+            </div>
+          </div>
+        </div>
+        <div class="callout" style="margin-top:20px">
+          <div class="ct">📋 이슈 트래킹</div>
+          전체 이슈 목록: <a href="https://github.com/RushTau/ProcessingIndicatorSDKForAOP/issues" style="color:var(--accent)">github.com/RushTau/ProcessingIndicatorSDKForAOP/issues</a>
+        </div>
+      </section>
+
+    </div><!-- /content -->
+  </main>
+</div>
+
+<script>
+// highlight.js
+document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+
+// theme toggle
+const root = document.documentElement;
+const btn = document.getElementById('themeBtn');
+let dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+function applyTheme() {
+  if (dark) { root.setAttribute('data-theme','dark'); btn.textContent='☀️ 라이트'; }
+  else { root.setAttribute('data-theme','light'); btn.textContent='🌙 다크'; }
+}
+applyTheme();
+btn.addEventListener('click', () => { dark = !dark; applyTheme(); });
+
+// mobile sidebar
+const sidebar = document.getElementById('sidebar');
+const overlay = document.querySelector('.overlay');
+const mobBtn = document.getElementById('mobBtn');
+function openSidebar() { sidebar.classList.add('open'); overlay.classList.add('open'); }
+function closeSidebar() { sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+mobBtn.addEventListener('click', openSidebar);
+overlay.addEventListener('click', closeSidebar);
+
+// close sidebar on nav click (mobile)
+document.querySelectorAll('.nav-link').forEach(a => {
+  a.addEventListener('click', () => { if (window.innerWidth <= 720) closeSidebar(); });
+});
+
+// active nav on scroll
+const sections = document.querySelectorAll('section[id], div[id="overview"]');
+const navLinks = document.querySelectorAll('.nav-link');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => obs.observe(s));
+
+// copy buttons
+function copyCode(btn) {
+  const code = btn.closest('.code-block').querySelector('code');
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.textContent = '✓ 복사됨'; btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('ok'); }, 1800);
+  });
+}
+</script>
